@@ -1,0 +1,12 @@
+# access_log_path: "/var/log/riverproxy/access.log"
+# startup_log_path: "/var/log/riverproxy/startup.log"
+# service_log_path: "/var/log/riverproxy/service.log"
+access_log_path: "/home/junjyu/log/riverproxy/access.log"
+startup_log_path: "/home/junjyu/log/riverproxy/startup.log"
+service_log_path: "/home/junjyu/log/riverproxy/service.log"
+
+# 是否同时输出到控制台（开发时推荐 true）
+enable_console: true
+
+# 最小日志级别：DEBUG, INFO, NOTICE, WARN, ERROR
+min_level: "INFO"
