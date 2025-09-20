@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -16,9 +15,11 @@ import (
 	"time"
 
 	"riverproxy/logger"
+
+	"github.com/google/uuid"
 )
 
-func HttpProxy() {
+func Start() {
 	// 1. 创建带取消功能的 context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -31,7 +32,7 @@ func HttpProxy() {
 	}
 	defer listener.Close()
 
-	logger.LogInfo("HTTP/HTTPS 代理服务器启动，监听 :8080")
+	logger.LogInfo("HTTP/HTTPS 代理服务器启动, 监听 :8080")
 
 	// 3. 监听系统信号用于优雅关闭
 	sigChan := make(chan os.Signal, 1)
@@ -43,7 +44,7 @@ func HttpProxy() {
 	// 5. 启动 goroutine 处理系统信号
 	go func() {
 		sig := <-sigChan
-		logger.LogInfo("接收到信号 %v，开始优雅关闭服务器", sig)
+		logger.LogInfo("接收到信号 %v, 开始优雅关闭服务器", sig)
 		cancel()         // 取消所有子 context
 		listener.Close() // 关闭监听器，使 Accept() 返回错误
 	}()
@@ -82,9 +83,9 @@ func handle_connection(clientConn net.Conn) {
 	logEntry.ClientIP = clientIP
 
 	// 生成随机 ID
-	connectionID := generateRandomID()
-	logEntry.ConnectionID = connectionID // 新增字段存储随机 ID
-	logger.LogDebug("新连接建立: ID=%s, ClientIP=%s", connectionID, clientIP)
+	connectionID := uuid.New().String()
+	logEntry.ConnectionID = connectionID
+	logger.LogDebug("[%s] 新连接建立, 客户端IP: %s", connectionID, clientIP)
 
 	defer func() {
 		logEntry.Duration = time.Since(startTime)
@@ -97,7 +98,7 @@ func handle_connection(clientConn net.Conn) {
 	req, err := http.ReadRequest(reader)
 	if err != nil {
 		if !errors.Is(err, io.EOF) {
-			logger.LogWarn("ID=%s, 读取客户端请求失败: %v", connectionID, err)
+			logger.LogWarn("[%s] 读取客户端请求失败: %v", connectionID, err)
 		}
 		return
 	}
@@ -129,12 +130,12 @@ func handle_https_proxy(clientConn net.Conn, req *http.Request, logEntry *logger
 		target += ":443"
 	}
 
-	logger.LogDebug("ID=%s, HTTPS CONNECT 请求: %s", connectionID, target)
+	logger.LogDebug("[%s] HTTPS CONNECT 请求: %s", connectionID, target)
 
 	// 连接到目标服务器
 	targetConn, err := net.DialTimeout("tcp", target, 10*time.Second)
 	if err != nil {
-		logger.LogError("ID=%s, 连接目标服务器 %s 失败: %v", connectionID, target, err)
+		logger.LogError("[%s] 连接目标服务器 %s 失败: %v", connectionID, target, err)
 		http.Error(&responseWriter{clientConn}, "Failed to connect to target", http.StatusBadGateway)
 		logEntry.StatusCode = 502
 		return
@@ -144,13 +145,13 @@ func handle_https_proxy(clientConn net.Conn, req *http.Request, logEntry *logger
 	// 发送连接建立成功的响应
 	_, err = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 	if err != nil {
-		logger.LogError("ID=%s, 发送 CONNECT 响应失败: %v", connectionID, err)
+		logger.LogError("[%s] 发送 CONNECT 响应失败: %v", connectionID, err)
 		logEntry.StatusCode = 500
 		return
 	}
 
 	logEntry.StatusCode = 200
-	logger.LogDebug("ID=%s, HTTPS 隧道建立成功: %s", connectionID, target)
+	logger.LogDebug("[%s] HTTPS 隧道建立成功: %s", connectionID, target)
 
 	// 双向转发数据（建立隧道）
 	go transfer_data(targetConn, clientConn, connectionID)
@@ -177,12 +178,12 @@ func handle_http_proxy(clientConn net.Conn, req *http.Request, logEntry *logger.
 		host += ":80"
 	}
 
-	logger.LogInfo("ID=%s, HTTP 代理请求: %s %s", connectionID, req.Method, host)
+	logger.LogInfo("[%s] HTTP 代理请求: %s %s", connectionID, req.Method, host)
 
 	// 连接目标服务器
 	targetConn, err := net.DialTimeout("tcp", host, 10*time.Second)
 	if err != nil {
-		logger.LogError("ID=%s, 连接目标服务器 %s 失败: %v", connectionID, host, err)
+		logger.LogError("[%s] 连接目标服务器 %s 失败: %v", connectionID, host, err)
 		http.Error(&responseWriter{clientConn}, "Failed to connect to target", http.StatusBadGateway)
 		logEntry.StatusCode = 502
 		return
@@ -196,7 +197,7 @@ func handle_http_proxy(clientConn net.Conn, req *http.Request, logEntry *logger.
 	// 转发请求到目标服务器
 	err = req.Write(targetConn)
 	if err != nil {
-		logger.LogError("ID=%s, 转发请求失败: %v", connectionID, err)
+		logger.LogError("[%s] 转发请求失败: %v", connectionID, err)
 		logEntry.StatusCode = 502
 		return
 	}
@@ -205,7 +206,7 @@ func handle_http_proxy(clientConn net.Conn, req *http.Request, logEntry *logger.
 	targetReader := bufio.NewReader(targetConn)
 	resp, err := http.ReadResponse(targetReader, req)
 	if err != nil {
-		logger.LogError("ID=%s, 读取响应失败: %v", connectionID, err)
+		logger.LogError("[%s] 读取响应失败: %v", connectionID, err)
 		logEntry.StatusCode = 502
 		return
 	}
@@ -217,12 +218,12 @@ func handle_http_proxy(clientConn net.Conn, req *http.Request, logEntry *logger.
 	// 转发响应给客户端并计算字节数
 	bytesWritten, err := io.Copy(clientConn, resp.Body)
 	if err != nil {
-		logger.LogError("ID=%s, 转发响应失败: %v", connectionID, err)
+		logger.LogError("[%s] 转发响应失败: %v", connectionID, err)
 		return
 	}
 	logEntry.Bytes = bytesWritten
 
-	logger.LogDebug("ID=%s, HTTP 代理完成: %s %s -> %d (%d bytes)", connectionID, req.Method, host, resp.StatusCode, bytesWritten)
+	logger.LogDebug("[%s] HTTP 代理完成: %s %s -> %d (%d bytes)", connectionID, req.Method, host, resp.StatusCode, bytesWritten)
 }
 
 func transfer_data(dst, src net.Conn, connectionID string) {
@@ -236,27 +237,20 @@ func transfer_data(dst, src net.Conn, connectionID string) {
 	// 双向转发数据
 	_, err := io.Copy(dst, src)
 	if err != nil {
-		if err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
-			logger.LogWarn("ID=%s, 数据转发错误: %v", connectionID, err)
+		switch {
+		case err == io.EOF:
+			logger.LogDebug("[%s] 连接正常关闭, 读取结束 (EOF)", connectionID)
+
+		case strings.Contains(err.Error(), "use of closed network connection"):
+			logger.LogDebug("[%s] 连接已关闭: %v", connectionID, err)
+
+		case errors.Is(err, os.ErrDeadlineExceeded):
+			logger.LogInfo("[%s] 连接超时: 超过读写等待时限", connectionID)
+
+		default:
+			logger.LogWarn("[%s] 数据转发错误: %v", connectionID, err)
 		}
 	}
-}
-
-// 生成随机 ID
-func generateRandomID() string {
-	return randomString(32)
-}
-
-// 生成随机字符串
-var letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-var src = rand.NewSource(time.Now().UnixNano())
-
-func randomString(length int) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = letters[src.Int63()%int64(len(letters))]
-	}
-	return string(b)
 }
 
 // 用于 http.Error 的简单响应写入器

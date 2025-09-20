@@ -6,7 +6,10 @@ import (
 )
 
 func main() {
+	// 初始化日志系统
 	loggerConfig := "/home/junjyu/Documents/project/RiverProxy/config/log.yaml"
 	logger.Init(loggerConfig)
-	proxy.HttpProxy()
+	defer logger.Close()
+
+	proxy.Start()
 }
