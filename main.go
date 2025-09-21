@@ -2,7 +2,7 @@ package main
 
 import (
 	"riverproxy/logger"
-	"riverproxy/proxy"
+	"riverproxy/server"
 )
 
 func main() {
@@ -11,5 +11,6 @@ func main() {
 	logger.Init(loggerConfig)
 	defer logger.Close()
 
-	proxy.Start()
+	// 启动服务
+	server.Start()
 }
