@@ -30,17 +30,13 @@ func (h *BaseHandler) Run(ctx context.Context) {
 
 	var wg sync.WaitGroup
 
+	go func(l net.Listener) {
+		<-ctx.Done()
+		l.Close()
+	}(listener)
+
 	// 监听连接
 	for {
-		select {
-		case <-ctx.Done():
-			logger.LogInfo("%s 服务器正在关闭，停止接受新连接", h.Protocol)
-			wg.Wait()
-			logger.LogInfo("%s 服务器已关闭", h.Protocol)
-			return
-		default:
-		}
-
 		conn, err := listener.Accept()
 		if err != nil {
 			select {
@@ -70,7 +66,7 @@ func (h *BaseHandler) handleConnFunc(clientConn net.Conn) {
 	logEntry.Timestamp = startTime
 	logEntry.ClientIP = clientIP
 
-	// 生成随机 ID
+	// 生成随机ID
 	connectionID := uuid.New().String()
 	logEntry.ConnectionID = connectionID
 	logger.LogDebug("[%s] 新连接建立, 客户端IP: %s", connectionID, clientIP)

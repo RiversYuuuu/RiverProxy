@@ -24,7 +24,6 @@ type AccessLog struct {
 	UserAgent    string        `json:"user_agent"`
 	Referer      string        `json:"referer"`
 	Protocol     string        `json:"protocol"`
-	IsHTTPS      bool          `json:"is_https"`
 	ConnectionID string        `json:"connection_id"`
 }
 

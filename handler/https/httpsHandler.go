@@ -25,7 +25,6 @@ func GetHTTPSHandler(port int) *handler.BaseHandler {
 func handleHTTPSRequest(clientConn net.Conn, req *http.Request, logEntry *logger.AccessLog, connectionID string) {
 	logEntry.Method = "CONNECT"
 	logEntry.Host = req.Host
-	logEntry.IsHTTPS = true
 	logEntry.Path = "/"
 
 	// 获取目标主机地址
@@ -38,8 +37,6 @@ func handleHTTPSRequest(clientConn net.Conn, req *http.Request, logEntry *logger
 	if !strings.Contains(target, ":") {
 		target += ":443"
 	}
-
-	logger.LogDebug("[%s] HTTPS CONNECT 请求: %s", connectionID, target)
 
 	// 连接到目标服务器
 	targetConn, err := net.DialTimeout("tcp", target, 10*time.Second)
