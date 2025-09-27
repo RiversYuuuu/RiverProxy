@@ -14,7 +14,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/semaphore"
 )
+
+var sem = semaphore.NewWeighted(50)
 
 func (h *BaseHandler) Run(ctx context.Context) {
 	// 创建监听器
@@ -51,9 +54,15 @@ func (h *BaseHandler) Run(ctx context.Context) {
 			}
 		}
 
+		if err := sem.Acquire(ctx, 1); err != nil {
+			http.Error(&ResponseWriter{Conn: conn}, "服务繁忙，请稍后再试", http.StatusTooManyRequests)
+			return
+		}
+
 		wg.Add(1)
 		go func(c net.Conn) {
 			defer wg.Done()
+			defer sem.Release(1)
 			h.handleConnFunc(c)
 		}(conn)
 	}
