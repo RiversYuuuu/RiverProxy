@@ -9,13 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"riverproxy/handler"
 	"riverproxy/logger"
 )
 
-func GetHTTPSHandler(port int) *handler.BaseHandler {
-	httpsHandler := &handler.BaseHandler{
-		Port:     port,
+func GetHTTPSHandler(port []int) *BaseHandler {
+	httpsHandler := &BaseHandler{
+		Ports:    port,
 		Protocol: "https",
 	}
 	httpsHandler.HandleReqFunc = handleHTTPSRequest
@@ -42,7 +41,7 @@ func handleHTTPSRequest(clientConn net.Conn, req *http.Request, logEntry *logger
 	targetConn, err := net.DialTimeout("tcp", target, 10*time.Second)
 	if err != nil {
 		logger.LogError("[%s] 连接目标服务器 %s 失败: %v", connectionID, target, err)
-		http.Error(&handler.ResponseWriter{Conn: clientConn}, "Failed to connect to target", http.StatusBadGateway)
+		http.Error(&ResponseWriter{Conn: clientConn}, "Failed to connect to target", http.StatusBadGateway)
 		logEntry.StatusCode = 502
 		return
 	}

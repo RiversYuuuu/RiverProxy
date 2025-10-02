@@ -2,15 +2,6 @@ package logger
 
 import "time"
 
-// Config 日志配置结构
-type Config struct {
-	AccessLogPath  string `yaml:"access_log_path"`
-	StartupLogPath string `yaml:"startup_log_path"`
-	ServiceLogPath string `yaml:"service_log_path"`
-	EnableConsole  bool   `yaml:"enable_console"`
-	MinLevel       string `yaml:"min_level"` // 字符串形式，后面转成 LogLevel
-}
-
 // AccessLog 是外部传入的日志结构体（由 proxy 包定义）
 type AccessLog struct {
 	Timestamp    time.Time     `json:"timestamp"`

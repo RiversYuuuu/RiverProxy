@@ -7,9 +7,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"riverproxy/config"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -17,52 +16,9 @@ var (
 	startupLogger *log.Logger
 	serviceLogger *log.Logger
 
-	// 全局配置
-	config Config
-
 	// 最小日志级别（用于 service.log 过滤）
 	minLevel LogLevel
-
-	// 控制台输出是否启用
-	consoleEnabled bool
 )
-
-// loadConfig 从 config.yaml 加载配置
-func loadConfig(configFile string) error {
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		return fmt.Errorf("无法读取日志配置文件: %w", err)
-	}
-
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return fmt.Errorf("解析日志配置文件失败: %w", err)
-	}
-
-	// 默认值
-	if config.AccessLogPath == "" {
-		config.AccessLogPath = "/var/log/riverproxy/access.log"
-	}
-	if config.StartupLogPath == "" {
-		config.StartupLogPath = "/var/log/riverproxy/startup.log"
-	}
-	if config.ServiceLogPath == "" {
-		config.ServiceLogPath = "/var/log/riverproxy/service.log"
-	}
-	if config.MinLevel == "" {
-		config.MinLevel = "INFO"
-	}
-
-	// 解析最小日志级别
-	minLevel, err = parseLogLevel(config.MinLevel)
-	if err != nil {
-		return fmt.Errorf("无效的 min_level: %v", err)
-	}
-
-	consoleEnabled = config.EnableConsole
-
-	return nil
-}
 
 // parseLogLevel 解析日志级别
 func parseLogLevel(s string) (LogLevel, error) {
@@ -86,20 +42,18 @@ func parseLogLevel(s string) (LogLevel, error) {
 // --- 公共接口 ---
 
 // Init 初始化日志系统
-func Init(configFile string) {
-	// 加载配置
-	if err := loadConfig(configFile); err != nil {
-		panic("日志配置加载失败: " + err.Error())
-	}
-
+func Init(logCfg config.LogConfig) {
 	// 创建 logs 目录
-	if err := os.MkdirAll(filepath.Dir(config.AccessLogPath), 0755); err != nil {
+	accessLogPath := logCfg.LogDir + "/access.log"
+	if err := os.MkdirAll(filepath.Dir(accessLogPath), 0755); err != nil {
 		panic("无法创建日志目录: " + err.Error())
 	}
-	if err := os.MkdirAll(filepath.Dir(config.StartupLogPath), 0755); err != nil {
+	startupLogPath := logCfg.LogDir + "/startup.log"
+	if err := os.MkdirAll(filepath.Dir(startupLogPath), 0755); err != nil {
 		panic("无法创建日志目录: " + err.Error())
 	}
-	if err := os.MkdirAll(filepath.Dir(config.ServiceLogPath), 0755); err != nil {
+	serviceLogPath := logCfg.LogDir + "/service.log"
+	if err := os.MkdirAll(filepath.Dir(serviceLogPath), 0755); err != nil {
 		panic("无法创建日志目录: " + err.Error())
 	}
 
@@ -114,26 +68,33 @@ func Init(configFile string) {
 	}
 
 	// 创建 logger 实例
-	accessLogger = log.New(openFile(config.AccessLogPath), "", log.LstdFlags|log.Lshortfile) // 无前缀，纯 JSON
-	startupLogger = log.New(openFile(config.StartupLogPath), "", log.LstdFlags|log.Lshortfile)
-	serviceLogger = log.New(openFile(config.ServiceLogPath), "", log.LstdFlags|log.Lshortfile)
+	accessLogger = log.New(openFile(accessLogPath), "", log.LstdFlags|log.Lshortfile) // 无前缀，纯 JSON
+	startupLogger = log.New(openFile(startupLogPath), "", log.LstdFlags|log.Lshortfile)
+	serviceLogger = log.New(openFile(serviceLogPath), "", log.LstdFlags|log.Lshortfile)
 
 	// 如果启用控制台，添加多路输出
-	if consoleEnabled {
+	if logCfg.EnableConsole {
 		multiWriter := io.MultiWriter(
 			os.Stdout,
-			openFile(config.StartupLogPath),
+			openFile(startupLogPath),
 		)
 		startupLogger.SetOutput(multiWriter)
 
 		multiWriterService := io.MultiWriter(
 			os.Stdout,
-			openFile(config.ServiceLogPath),
+			openFile(serviceLogPath),
 		)
 		serviceLogger.SetOutput(multiWriterService)
 	}
 
-	startupLogger.Println("日志系统已加载配置, min_level=" + config.MinLevel)
+	// 配置日志级别
+	minL, err := parseLogLevel(logCfg.MinLevel)
+	if err != nil {
+		minLevel = LogLevelWarn
+	} else {
+		minLevel = minL
+	}
+	LogStartup("日志系统初始化完成, level=%v", logCfg.MinLevel)
 }
 
 // Close 关闭所有日志文件

@@ -1,0 +1,24 @@
+# 日志配置
+log:
+  # 日志存储路径
+  log_dir: "/var/log/riverproxy"
+
+  # 是否同时输出到控制台（开发时推荐 true）
+  enable_console: true
+
+  # 最小日志级别：DEBUG, INFO, NOTICE, WARN, ERROR
+  min_level: "INFO"
+
+# 代理配置
+proxy:
+  - 
+    protocol: "http"      # HTTP代理服务
+    ports: [8080]         # 监听端口
+
+  -
+    protocol: "https"     # HTTPS代理服务
+    ports: [8443]         # 监听端口
+  
+  - 
+    protocol: "aggregate" # HTTP（S）聚合代理服务
+    ports: [8081]         # 监听端口

@@ -1,16 +1,23 @@
 package main
 
 import (
+	"riverproxy/config"
 	"riverproxy/logger"
 	"riverproxy/server"
 )
 
 func main() {
+	// 加载配置
+	configFile := "config/config.yaml"
+	config, err := config.LoadConfig(configFile)
+	if err != nil {
+		panic(err)
+	}
+
 	// 初始化日志系统
-	loggerConfig := "/home/junjyu/Documents/project/RiverProxy/config/log.yaml"
-	logger.Init(loggerConfig)
+	logger.Init(config.LogCfg)
 	defer logger.Close()
 
-	// 启动服务
-	server.Start()
+	// 初始化代理服务
+	server.Start(config.ProxyCfg)
 }

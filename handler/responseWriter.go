@@ -1,6 +1,13 @@
 package handler
 
-import "net/http"
+import (
+	"net"
+	"net/http"
+)
+
+type ResponseWriter struct {
+	net.Conn
+}
 
 func (rw *ResponseWriter) Header() http.Header {
 	return make(http.Header)
